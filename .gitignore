@@ -1,0 +1,43 @@
+## Visual Studio 2022
+# Ignora arquivos de usuário e de cache do Visual Studio
+.vs/
+*.suo
+*.user
+
+# Ignora pastas de binários (builds)
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+*.pdb
+*.orig
+*.log
+
+# Ignora pacotes de nuget
+packages/
+*.nupkg
+*.cache
+
+# Ignora arquivos de pacotes de restore do .NET Core
+project.assets.json
+project.lock.json
+
+# Arquivos de configurações de teste
+*.testsettings
+
+# Arquivos de configurações de editor
+.editorconfig
+.editorconfig-template
+*.sln.docstates
+
+# Outros arquivos temporários
+*.tmp
+*.bak
+*.old
+*~
+
+# Arquiva arquivos de publish
+Publish/
+
+# Arquivos de extensão do VS
+*.vsix
