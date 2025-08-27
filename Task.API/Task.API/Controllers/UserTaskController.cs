@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Task.API.Data;
 using Task.API.Models;
 
 namespace Task.API.Controllers
@@ -8,24 +10,26 @@ namespace Task.API.Controllers
     [ApiController]
     public class UserTaskController : ControllerBase
     {
-        // Uma lista estática para simular um banco de dados por enquanto.
-        private static List<UserTask> _tasks = new List<UserTask>
+        // 1. Variável privada para guardar a instância do AppDbContext
+        private readonly AppDbContext _context;
+
+        // 2. Construtor que recebe o AppDbContext via Injeção de Dependência
+        public UserTaskController(AppDbContext context)
         {
-            new() { Id = 1, Name = "Comprar frutas",  State = true },
-            new() { Id = 2, Name = "Malhar", State = true },
-            new() { Id = 3, Name = "Arrumar cama", State = false }
-        };
+            _context = context;
+        }
 
         [HttpGet]
-        public ActionResult<IEnumerable<UserTask>> GetProdutos()
+        public async Task<ActionResult<IEnumerable<UserTask>>> GetTasks()
         {
-            return _tasks;
+            return await _context.Tasks.ToListAsync();
         }
 
         [HttpGet("{id}")]
-        public ActionResult<UserTask> GetTask(int id)
+        public async Task<ActionResult<UserTask>> GetTask(int id)
         {
-            var task = _tasks.Find(t => t.Id == id);
+            // Usa o FindAsync para buscar a tarefa no banco de dados
+            var task = await _context.Tasks.FindAsync(id);
 
             if (task == null)
             {
@@ -36,51 +40,76 @@ namespace Task.API.Controllers
         }
 
         [HttpPost]
-        public ActionResult<UserTask> CreateTask([FromBody] UserTask newTask)
+        public async Task<ActionResult<UserTask>> CreateTask([FromBody] UserTask newTask)
         {
-            // Simula a adição de um novo ID
-            int newId = _tasks.Max(t => t.Id) + 1;
-            newTask.Id = newId;
+            // Adiciona a nova tarefa ao contexto do banco de dados
+            _context.Tasks.Add(newTask);
 
-            // Adiciona a nova tarefa na lista
-            _tasks.Add(newTask);
+            // Salva as alterações no banco de dados de forma assíncrona
+            await _context.SaveChangesAsync();
 
-            // Retorna o status 201 Created e a tarefa criada
+            // Retorna o status 201 Created com a URL do novo recurso
             return CreatedAtAction(nameof(GetTask), new { id = newTask.Id }, newTask);
         }
 
         [HttpPut("{id}")]
-        public IActionResult UpdateTask(int id, UserTask updatedTask)
+        public async Task<IActionResult> UpdateTask(int id, UserTask updatedTask)
         {
+            // Verifica se o ID na URL corresponde ao ID no corpo da requisição
             if (id != updatedTask.Id)
             {
-                return BadRequest(); // Retorna um erro 400 Bad Request se os IDs não coincidirem
+                return BadRequest(); // Retorna 400 Bad Request
             }
 
-            var taskToUpdate = _tasks.Find(t => t.Id == id);
+            // Marca o objeto como modificado no contexto.
+            // O EF Core vai rastreá-lo e saber que ele precisa ser atualizado.
+            _context.Entry(updatedTask).State = EntityState.Modified;
 
-            if (taskToUpdate == null)
+            try
             {
-                return NotFound(); // Retorna 404 Not Found se a tarefa não existir
+                // Salva as alterações no banco de dados de forma assíncrona
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Se a tarefa não existir, o EF Core dispara esta exceção
+                if (!TaskExists(id))
+                {
+                    return NotFound(); // Retorna 404 Not Found
+                }
+                else
+                {
+                    // Se o erro for outro (concorrência, por exemplo), propaga a exceção
+                    throw;
+                }
             }
 
-            taskToUpdate.Name = updatedTask.Name;
-            taskToUpdate.State = updatedTask.State;
+            // Retorna o status 204 No Content para uma atualização bem-sucedida
+            return NoContent();
+        }
 
-            return NoContent(); // Retorna 204 No Content, que é a resposta padrão para uma atualização bem-sucedida sem conteúdo para retornar
+        // Método auxiliar para verificar se uma tarefa existe
+        private bool TaskExists(int id)
+        {
+            return _context.Tasks.Any(e => e.Id == id);
         }
 
         [HttpDelete("{id}")]
-        public IActionResult DeleteTask(int id)
+        public async Task<IActionResult> DeleteTask(int id)
         {
-            var taskToDelete = _tasks.Find(t => t.Id == id);
+            // Busca a tarefa para deletar no banco de dados de forma assíncrona
+            var taskToDelete = await _context.Tasks.FindAsync(id);
 
             if (taskToDelete == null)
             {
                 return NotFound(); // Retorna 404 Not Found se a tarefa não existir
             }
 
-            _tasks.Remove(taskToDelete);
+            // Remove a tarefa do contexto
+            _context.Tasks.Remove(taskToDelete);
+
+            // Salva a remoção no banco de forma assíncrona
+            await _context.SaveChangesAsync();
 
             return NoContent(); // Retorna 204 No Content para indicar sucesso
         }

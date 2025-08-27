@@ -12,6 +12,7 @@
 *.pdb
 *.orig
 *.log
+*.db
 
 # Ignora pacotes de nuget
 packages/
